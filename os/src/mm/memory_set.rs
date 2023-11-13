@@ -39,6 +39,14 @@ pub struct MemorySet {
     areas: Vec<MapArea>,
 }
 
+/// MemorySetOccupancy
+#[derive(PartialEq)]
+pub enum MemorySetOccupancy {
+    Free,
+    Overlap,
+    Occupied,
+}
+
 impl MemorySet {
     /// Create a new empty `MemorySet`.
     pub fn new_bare() -> Self {
@@ -51,6 +59,19 @@ impl MemorySet {
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
+    pub fn check_occupancy(&self, vpn_range: VPNRange) -> MemorySetOccupancy {
+        for area in &self.areas {
+            if vpn_range.r <= area.vpn_range.l || area.vpn_range.r <= vpn_range.l {
+                continue;
+            }
+            if area.vpn_range.l <= vpn_range.l && vpn_range.r <= area.vpn_range.r {
+                return MemorySetOccupancy::Occupied;
+            }
+            return MemorySetOccupancy::Overlap;
+        }
+
+        MemorySetOccupancy::Free
+    }
     /// Assume that no conflicts.
     pub fn insert_framed_area(
         &mut self,
@@ -62,6 +83,23 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+    pub fn remove_area(&mut self, vpn_range: VPNRange) -> bool {
+        let mut index = None;
+        for (i, area) in self.areas.iter_mut().enumerate() {
+            if area.vpn_range.l == vpn_range.l && area.vpn_range.r == vpn_range.r {
+                index = Some(i);
+                for vpn in vpn_range {
+                    area.unmap_one(&mut self.page_table, vpn);
+                }
+            }
+        }
+        if let Some(index) = index {
+            self.areas.remove(index);
+            true
+        } else {
+            false
+        }
     }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
