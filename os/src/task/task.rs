@@ -1,9 +1,10 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+use crate::timer::Instant;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
@@ -74,6 +75,12 @@ pub struct TaskControlBlockInner {
 
     /// Priority for scheduling.
     pub sched_prio: usize,
+
+    /// Syscall times
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+
+    /// The instant of starting of task
+    pub task_start_instant: Option<Instant>,
 }
 
 impl TaskControlBlockInner {
@@ -126,6 +133,8 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                     sched_stride: 0,
                     sched_prio: 16,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    task_start_instant: None,
                 })
             },
         };
@@ -201,6 +210,8 @@ impl TaskControlBlock {
                     program_brk: parent_inner.program_brk,
                     sched_stride: parent_inner.sched_stride,
                     sched_prio: parent_inner.sched_prio,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    task_start_instant: None,
                 })
             },
         });

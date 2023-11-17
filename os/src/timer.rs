@@ -25,10 +25,60 @@ pub fn get_time_ms() -> usize {
 /// get current time in microseconds
 #[allow(dead_code)]
 pub fn get_time_us() -> usize {
-    time::read() / (CLOCK_FREQ / MICRO_PER_SEC)
+    time::read() * 2 / 25
 }
 
 /// Set the next timer interrupt
 pub fn set_next_trigger() {
     set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
+}
+
+/// Instant, namely timestamp.
+pub struct Instant {
+    pub ticks: usize,
+}
+
+impl Instant {
+    pub fn now() -> Self {
+        Instant { ticks: get_time() }
+    }
+
+    pub fn duration_since(&self, earlier: Instant) -> Duration {
+        Duration {
+            ticks: self.ticks - earlier.ticks,
+        }
+    }
+
+    pub fn elapsed(&self) -> Duration {
+        Duration {
+            ticks: get_time() - self.ticks,
+        }
+    }
+
+    pub fn as_secs(&self) -> usize {
+        self.ticks / CLOCK_FREQ
+    }
+    pub fn as_millis(&self) -> usize {
+        self.ticks / (CLOCK_FREQ / 1000)
+    }
+    pub fn as_micros(&self) -> usize {
+        self.ticks * 2 / 25
+    }
+}
+
+/// Duration, namely time-span.
+pub struct Duration {
+    pub ticks: usize,
+}
+
+impl Duration {
+    pub fn as_secs(&self) -> usize {
+        self.ticks / CLOCK_FREQ
+    }
+    pub fn as_millis(&self) -> usize {
+        self.ticks / (CLOCK_FREQ / 1000)
+    }
+    pub fn as_micros(&self) -> usize {
+        self.ticks * 2 / 25
+    }
 }

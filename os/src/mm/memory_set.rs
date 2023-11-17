@@ -36,6 +36,14 @@ pub struct MemorySet {
     areas: Vec<MapArea>,
 }
 
+/// MemorySetOccupancy
+#[derive(PartialEq)]
+pub enum MemorySetOccupancy {
+    Free,
+    Overlap,
+    Occupied,
+}
+
 impl MemorySet {
     /// Create a new empty `MemorySet`.
     pub fn new_bare() -> Self {
@@ -47,6 +55,23 @@ impl MemorySet {
     /// Get the page table token
     pub fn token(&self) -> usize {
         self.page_table.token()
+    }
+    pub fn check_occupancy(&self, vpn_range: VPNRange) -> MemorySetOccupancy {
+        for area in &self.areas {
+            if vpn_range.get_end() <= area.vpn_range.get_start()
+                || area.vpn_range.get_end() <= vpn_range.get_start()
+            {
+                continue;
+            }
+            if area.vpn_range.get_start() <= vpn_range.get_start()
+                && vpn_range.get_end() <= area.vpn_range.get_end()
+            {
+                return MemorySetOccupancy::Occupied;
+            }
+            return MemorySetOccupancy::Overlap;
+        }
+
+        MemorySetOccupancy::Free
     }
     /// Assume that no conflicts.
     pub fn insert_framed_area(
