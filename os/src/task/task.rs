@@ -68,6 +68,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Stride for scheduler to determine the next task to run.
+    pub sched_stride: usize,
+
+    /// Priority for scheduling.
+    pub sched_prio: usize,
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +124,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    sched_stride: 0,
+                    sched_prio: 16,
                 })
             },
         };
@@ -191,6 +199,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    sched_stride: parent_inner.sched_stride,
+                    sched_prio: parent_inner.sched_prio,
                 })
             },
         });
