@@ -1,17 +1,52 @@
 //!Implementation of [`TaskManager`]
 use super::TaskControlBlock;
 use crate::sync::UPSafeCell;
-use alloc::collections::VecDeque;
+use alloc::collections::BinaryHeap;
 use alloc::sync::Arc;
+use core::cmp;
 use lazy_static::*;
 
 /// When a task is switched out by the scheduler, its scheduler stride increases
 /// by one pass, where `pass = BIG_STRIDE / task.sched_prio`.
 pub const BIG_STRIDE: usize = 512;
 
-///A array of `TaskControlBlock` that is thread-safe
+/// A array of `TaskControlBlock` that is thread-safe
 pub struct TaskManager {
-    ready_queue: VecDeque<Arc<TaskControlBlock>>,
+    ready_queue: BinaryHeap<HeapItem>,
+}
+
+struct HeapItem(pub Arc<TaskControlBlock>);
+
+impl cmp::PartialEq for HeapItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.inner_exclusive_access().sched_stride
+            == other.0.inner_exclusive_access().sched_stride
+    }
+}
+impl cmp::PartialOrd for HeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        let me = self.0.inner_exclusive_access().sched_stride;
+        let other = other.0.inner_exclusive_access().sched_stride;
+
+        if usize::abs_diff(me, other) <= BIG_STRIDE / 2 {
+            other.partial_cmp(&me)
+        } else {
+            me.partial_cmp(&other)
+        }
+    }
+}
+impl cmp::Eq for HeapItem {}
+impl cmp::Ord for HeapItem {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        let me = self.0.inner_exclusive_access().sched_stride;
+        let other = other.0.inner_exclusive_access().sched_stride;
+
+        if usize::abs_diff(me, other) <= BIG_STRIDE / 2 {
+            other.cmp(&me)
+        } else {
+            me.cmp(&other)
+        }
+    }
 }
 
 /// A simple FIFO scheduler.
@@ -19,25 +54,16 @@ impl TaskManager {
     ///Creat an empty TaskManager
     pub fn new() -> Self {
         Self {
-            ready_queue: VecDeque::new(),
+            ready_queue: BinaryHeap::new(),
         }
     }
     /// Add process back to ready queue
     pub fn add(&mut self, task: Arc<TaskControlBlock>) {
-        self.ready_queue.push_back(task);
+        self.ready_queue.push(HeapItem(task));
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.ready_queue
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| {
-                a.inner_exclusive_access()
-                    .sched_stride
-                    .cmp(&b.inner_exclusive_access().sched_stride)
-            })
-            .map(|(index, _)| index)
-            .map(|index| self.ready_queue.remove(index).unwrap())
+        self.ready_queue.pop().map(|item| item.0)
     }
 }
 
